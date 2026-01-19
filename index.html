@@ -1,34 +1,48 @@
-import React, { useState } from 'react';
-import { BookOpen, Brain, CheckCircle, XCircle, RefreshCw, FileText, ArrowRight, Download, Upload, Plus, Minus } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Kunskapstest</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-8">
+    <div id="app" class="max-w-3xl mx-auto"></div>
 
-export default function QuizGenerator() {
-  const [text, setText] = useState('');
-  const [stage, setStage] = useState('input');
-  const [questions, setQuestions] = useState([]);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [userAnswer, setUserAnswer] = useState('');
-  const [answers, setAnswers] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [numQuestions, setNumQuestions] = useState(5);
+    <script>
+        let state = {
+            text: '',
+            stage: 'input',
+            questions: [],
+            currentQuestion: 0,
+            userAnswer: '',
+            answers: [],
+            loading: false,
+            numQuestions: 5
+        };
 
-  const generateQuestions = async () => {
-    if (!text.trim()) return;
-    
-    setLoading(true);
-    
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [
-            {
-              role: "user",
-              content: `Baserat på följande text, generera exakt ${numQuestions} frågor som testar förståelsen av innehållet. Svara ENDAST med JSON i detta format (ingen annan text):
+        function setState(newState) {
+            state = { ...state, ...newState };
+            render();
+        }
+
+        async function generateQuestions() {
+            if (!state.text.trim()) return;
+            
+            setState({ loading: true });
+            
+            try {
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: 1000,
+                        messages: [{
+                            role: "user",
+                            content: `Baserat på följande text, generera exakt ${state.numQuestions} frågor som testar förståelsen av innehållet. Svara ENDAST med JSON i detta format (ingen annan text):
 [
   {
     "question": "frågan här",
@@ -37,356 +51,397 @@ export default function QuizGenerator() {
 ]
 
 Text att skapa frågor från:
-${text}`
-            }
-          ],
-        })
-      });
+${state.text}`
+                        }],
+                    })
+                });
 
-      const data = await response.json();
-      const content = data.content[0].text.trim();
-      const cleanJson = content.replace(/```json|```/g, '').trim();
-      const generatedQuestions = JSON.parse(cleanJson);
-      
-      setQuestions(generatedQuestions);
-      setStage('quiz');
-      setCurrentQuestion(0);
-      setAnswers([]);
-    } catch (error) {
-      console.error('Fel vid generering av frågor:', error);
-      alert('Något gick fel. Försök igen.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const downloadQuiz = () => {
-    if (!text.trim()) return;
-    
-    const quizData = {
-      text: text,
-      questions: questions.length > 0 ? questions : [],
-      numQuestions: numQuestions,
-      createdAt: new Date().toISOString()
-    };
-    
-    const blob = new Blob([JSON.stringify(quizData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `quiz-${Date.now()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const uploadQuiz = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const quizData = JSON.parse(e.target.result);
-        setText(quizData.text);
-        setQuestions(quizData.questions || []);
-        setNumQuestions(quizData.numQuestions || quizData.questions?.length || 5);
-        if (quizData.questions && quizData.questions.length > 0) {
-          setStage('quiz');
-          setCurrentQuestion(0);
-          setAnswers([]);
-        }
-      } catch (error) {
-        console.error('Fel vid uppladdning:', error);
-        alert('Kunde inte läsa filen. Kontrollera att det är en giltig quiz-fil.');
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const submitAnswer = () => {
-    const newAnswers = [...answers, {
-      question: questions[currentQuestion].question,
-      userAnswer: userAnswer,
-      correctAnswer: questions[currentQuestion].answer,
-      isCorrect: userAnswer.toLowerCase().trim() === questions[currentQuestion].answer.toLowerCase().trim()
-    }];
-    
-    setAnswers(newAnswers);
-    setUserAnswer('');
-    
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
-      setStage('results');
-    }
-  };
-
-  const restartAll = () => {
-    setText('');
-    setStage('input');
-    setQuestions([]);
-    setCurrentQuestion(0);
-    setAnswers([]);
-    setUserAnswer('');
-    setNumQuestions(5);
-  };
-
-  const retryMistakes = () => {
-    const wrongAnswers = answers.filter(a => !a.isCorrect);
-    const wrongQuestions = wrongAnswers.map(a => ({
-      question: a.question,
-      answer: a.correctAnswer
-    }));
-    
-    setQuestions(wrongQuestions);
-    setCurrentQuestion(0);
-    setAnswers([]);
-    setUserAnswer('');
-    setStage('quiz');
-  };
-
-  const newText = () => {
-    setText('');
-    setStage('input');
-    setQuestions([]);
-    setCurrentQuestion(0);
-    setAnswers([]);
-    setUserAnswer('');
-  };
-
-  const correctCount = answers.filter(a => a.isCorrect).length;
-  const totalCount = answers.length;
-  const percentage = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
-
-  if (stage === 'input') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-        <div className="max-w-3xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <Brain className="w-10 h-10 text-indigo-600" />
-              <h1 className="text-3xl font-bold text-gray-800">AI Kunskapstest</h1>
-            </div>
-            
-            <p className="text-gray-600 mb-6">
-              Klistra in en text så genererar AI frågor för att testa din förståelse. Antalet frågor anpassas efter textens längd.
-            </p>
-            
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Skriv eller klistra in din text här..."
-              className="w-full h-64 p-4 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none resize-none"
-            />
-            
-            <div className="mt-6 flex items-center gap-4">
-              <div className="flex items-center gap-3 bg-gray-100 rounded-lg p-2">
-                <button
-                  onClick={() => setNumQuestions(Math.max(1, numQuestions - 1))}
-                  className="p-2 hover:bg-gray-200 rounded transition"
-                >
-                  <Minus className="w-5 h-5 text-gray-700" />
-                </button>
-                <span className="font-semibold text-gray-800 w-16 text-center">
-                  {numQuestions} frågor
-                </span>
-                <button
-                  onClick={() => setNumQuestions(numQuestions + 1)}
-                  className="p-2 hover:bg-gray-200 rounded transition"
-                >
-                  <Plus className="w-5 h-5 text-gray-700" />
-                </button>
-              </div>
-              
-              {numQuestions > 20 && (
-                <p className="text-sm text-orange-600 flex-1">
-                  ⚠️ AI:n kan ha svårt att hitta på unika frågor över 20 stycken
-                </p>
-              )}
-            </div>
-            
-            <div className="mt-6 flex justify-between items-center gap-4">
-              <div className="flex gap-3">
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={uploadQuiz}
-                    className="hidden"
-                  />
-                  <div className="flex items-center gap-2 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-300">
-                    <Upload className="w-5 h-5" />
-                    Ladda upp quiz
-                  </div>
-                </label>
+                const data = await response.json();
+                const content = data.content[0].text.trim();
+                const cleanJson = content.replace(/```json|```/g, '').trim();
+                const generatedQuestions = JSON.parse(cleanJson);
                 
-                <button
-                  onClick={downloadQuiz}
-                  disabled={!text.trim()}
-                  className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  <Download className="w-5 h-5" />
-                  Ladda ner
-                </button>
-              </div>
-              
-              <button
-                onClick={generateQuestions}
-                disabled={!text.trim() || loading}
-                className="bg-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {loading ? 'Genererar...' : 'Starta Quiz'}
-                <ArrowRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+                setState({ 
+                    questions: generatedQuestions, 
+                    stage: 'quiz', 
+                    currentQuestion: 0, 
+                    answers: [],
+                    loading: false 
+                });
+            } catch (error) {
+                console.error('Fel vid generering av frågor:', error);
+                alert('Något gick fel. Försök igen.');
+                setState({ loading: false });
+            }
+        }
 
-  if (stage === 'quiz') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-sm font-semibold text-indigo-600">
-                  Fråga {currentQuestion + 1} av {questions.length}
-                </span>
-                <div className="flex gap-1">
-                  {questions.map((_, idx) => (
-                    <div
-                      key={idx}
-                      className={`w-8 h-2 rounded ${
-                        idx < currentQuestion ? 'bg-indigo-600' :
-                        idx === currentQuestion ? 'bg-indigo-400' :
-                        'bg-gray-200'
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-              
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">
-                {questions[currentQuestion].question}
-              </h2>
-              
-              <input
-                type="text"
-                value={userAnswer}
-                onChange={(e) => setUserAnswer(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && userAnswer.trim() && submitAnswer()}
-                placeholder="Skriv ditt svar här..."
-                className="w-full p-4 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none"
-                autoFocus
-              />
-              
-              <button
-                onClick={submitAnswer}
-                disabled={!userAnswer.trim()}
-                className="mt-6 w-full bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                {currentQuestion < questions.length - 1 ? 'Nästa fråga' : 'Visa resultat'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+        function downloadQuiz() {
+            if (!state.text.trim()) return;
+            
+            const quizData = {
+                text: state.text,
+                questions: state.questions.length > 0 ? state.questions : [],
+                numQuestions: state.numQuestions,
+                createdAt: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(quizData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `quiz-${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
 
-  if (stage === 'results') {
-    const wrongAnswers = answers.filter(a => !a.isCorrect);
-    
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-        <div className="max-w-3xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <div className="text-center mb-8">
-              <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 ${
-                percentage >= 70 ? 'bg-green-100' : 'bg-orange-100'
-              }`}>
-                <span className="text-3xl font-bold text-gray-800">{percentage}%</span>
-              </div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">Quiz klar!</h2>
-              <p className="text-gray-600">
-                Du fick {correctCount} av {totalCount} rätt
-              </p>
-            </div>
+        function uploadQuiz(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const quizData = JSON.parse(e.target.result);
+                    setState({
+                        text: quizData.text,
+                        questions: quizData.questions || [],
+                        numQuestions: quizData.numQuestions || quizData.questions?.length || 5,
+                        stage: (quizData.questions && quizData.questions.length > 0) ? 'quiz' : 'input',
+                        currentQuestion: 0,
+                        answers: []
+                    });
+                } catch (error) {
+                    console.error('Fel vid uppladdning:', error);
+                    alert('Kunde inte läsa filen. Kontrollera att det är en giltig quiz-fil.');
+                }
+            };
+            reader.readAsText(file);
+        }
 
-            <div className="space-y-4 mb-8">
-              {answers.map((answer, idx) => (
-                <div
-                  key={idx}
-                  className={`p-4 rounded-lg border-2 ${
-                    answer.isCorrect ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {answer.isCorrect ? (
-                      <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
-                    ) : (
-                      <XCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
-                    )}
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-800 mb-2">{answer.question}</p>
-                      {!answer.isCorrect && (
-                        <>
-                          <p className="text-sm text-red-700 mb-1">
-                            Ditt svar: {answer.userAnswer}
-                          </p>
-                          <p className="text-sm text-green-700">
-                            Rätt svar: {answer.correctAnswer}
-                          </p>
-                        </>
-                      )}
-                      {answer.isCorrect && (
-                        <p className="text-sm text-green-700">
-                          {answer.userAnswer}
-                        </p>
-                      )}
+        function submitAnswer() {
+            const newAnswers = [...state.answers, {
+                question: state.questions[state.currentQuestion].question,
+                userAnswer: state.userAnswer,
+                correctAnswer: state.questions[state.currentQuestion].answer,
+                isCorrect: state.userAnswer.toLowerCase().trim() === state.questions[state.currentQuestion].answer.toLowerCase().trim()
+            }];
+            
+            if (state.currentQuestion < state.questions.length - 1) {
+                setState({ 
+                    answers: newAnswers,
+                    userAnswer: '',
+                    currentQuestion: state.currentQuestion + 1
+                });
+            } else {
+                setState({ 
+                    answers: newAnswers,
+                    userAnswer: '',
+                    stage: 'results'
+                });
+            }
+        }
+
+        function restartAll() {
+            setState({
+                text: '',
+                stage: 'input',
+                questions: [],
+                currentQuestion: 0,
+                answers: [],
+                userAnswer: '',
+                numQuestions: 5
+            });
+        }
+
+        function retryMistakes() {
+            const wrongAnswers = state.answers.filter(a => !a.isCorrect);
+            const wrongQuestions = wrongAnswers.map(a => ({
+                question: a.question,
+                answer: a.correctAnswer
+            }));
+            
+            setState({
+                questions: wrongQuestions,
+                currentQuestion: 0,
+                answers: [],
+                userAnswer: '',
+                stage: 'quiz'
+            });
+        }
+
+        function newText() {
+            setState({
+                text: '',
+                stage: 'input',
+                questions: [],
+                currentQuestion: 0,
+                answers: [],
+                userAnswer: ''
+            });
+        }
+
+        function renderInput() {
+            const correctCount = state.answers.filter(a => a.isCorrect).length;
+            const totalCount = state.answers.length;
+            
+            return `
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <div class="flex items-center gap-3 mb-6">
+                        <svg class="w-10 h-10 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                        </svg>
+                        <h1 class="text-3xl font-bold text-gray-800">AI Kunskapstest</h1>
                     </div>
-                  </div>
+                    
+                    <p class="text-gray-600 mb-6">
+                        Klistra in en text så genererar AI frågor för att testa din förståelse. Antalet frågor anpassas efter textens längd.
+                    </p>
+                    
+                    <textarea
+                        id="textInput"
+                        placeholder="Skriv eller klistra in din text här..."
+                        class="w-full h-64 p-4 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none resize-none"
+                    >${state.text}</textarea>
+                    
+                    <div class="mt-6 flex items-center gap-4">
+                        <div class="flex items-center gap-3 bg-gray-100 rounded-lg p-2">
+                            <button
+                                onclick="setState({ numQuestions: Math.max(1, state.numQuestions - 1) })"
+                                class="p-2 hover:bg-gray-200 rounded transition"
+                            >
+                                <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                                </svg>
+                            </button>
+                            <span class="font-semibold text-gray-800 w-16 text-center">
+                                ${state.numQuestions} frågor
+                            </span>
+                            <button
+                                onclick="setState({ numQuestions: state.numQuestions + 1 })"
+                                class="p-2 hover:bg-gray-200 rounded transition"
+                            >
+                                <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        ${state.numQuestions > 20 ? `
+                            <p class="text-sm text-orange-600 flex-1">
+                                ⚠️ AI:n kan ha svårt att hitta på unika frågor över 20 stycken
+                            </p>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="mt-6 flex justify-between items-center gap-4">
+                        <div class="flex gap-3">
+                            <label class="cursor-pointer">
+                                <input
+                                    type="file"
+                                    accept=".json"
+                                    onchange="uploadQuiz(event)"
+                                    class="hidden"
+                                />
+                                <div class="flex items-center gap-2 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-300">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                    </svg>
+                                    Ladda upp quiz
+                                </div>
+                            </label>
+                            
+                            <button
+                                onclick="downloadQuiz()"
+                                ${!state.text.trim() ? 'disabled' : ''}
+                                class="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                            >
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                                </svg>
+                                Ladda ner
+                            </button>
+                        </div>
+                        
+                        <button
+                            onclick="generateQuestions()"
+                            ${!state.text.trim() || state.loading ? 'disabled' : ''}
+                            class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            ${state.loading ? 'Genererar...' : 'Starta Quiz'}
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-              ))}
-            </div>
+            `;
+        }
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button
-                onClick={restartAll}
-                className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700"
-              >
-                <RefreshCw className="w-5 h-5" />
-                Kör om allt
-              </button>
-              
-              {wrongAnswers.length > 0 && (
-                <button
-                  onClick={retryMistakes}
-                  className="flex items-center justify-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-700"
-                >
-                  <BookOpen className="w-5 h-5" />
-                  Öva misstag ({wrongAnswers.length})
-                </button>
-              )}
-              
-              <button
-                onClick={newText}
-                className="flex items-center justify-center gap-2 bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-700"
-              >
-                <FileText className="w-5 h-5" />
-                Ny text
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+        function renderQuiz() {
+            return `
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-sm font-semibold text-indigo-600">
+                                Fråga ${state.currentQuestion + 1} av ${state.questions.length}
+                            </span>
+                            <div class="flex gap-1">
+                                ${state.questions.map((_, idx) => `
+                                    <div class="w-8 h-2 rounded ${
+                                        idx < state.currentQuestion ? 'bg-indigo-600' :
+                                        idx === state.currentQuestion ? 'bg-indigo-400' :
+                                        'bg-gray-200'
+                                    }"></div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">
+                            ${state.questions[state.currentQuestion].question}
+                        </h2>
+                        
+                        <input
+                            type="text"
+                            id="answerInput"
+                            value="${state.userAnswer}"
+                            onkeypress="if(event.key === 'Enter' && document.getElementById('answerInput').value.trim()) submitAnswer()"
+                            placeholder="Skriv ditt svar här..."
+                            class="w-full p-4 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none"
+                            autofocus
+                        />
+                        
+                        <button
+                            onclick="submitAnswer()"
+                            ${!state.userAnswer.trim() ? 'disabled' : ''}
+                            class="mt-6 w-full bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                        >
+                            ${state.currentQuestion < state.questions.length - 1 ? 'Nästa fråga' : 'Visa resultat'}
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
 
-  return null;
-}
+        function renderResults() {
+            const wrongAnswers = state.answers.filter(a => !a.isCorrect);
+            const correctCount = state.answers.filter(a => a.isCorrect).length;
+            const totalCount = state.answers.length;
+            const percentage = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+            
+            return `
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <div class="text-center mb-8">
+                        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 ${
+                            percentage >= 70 ? 'bg-green-100' : 'bg-orange-100'
+                        }">
+                            <span class="text-3xl font-bold text-gray-800">${percentage}%</span>
+                        </div>
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2">Quiz klar!</h2>
+                        <p class="text-gray-600">
+                            Du fick ${correctCount} av ${totalCount} rätt
+                        </p>
+                    </div>
+
+                    <div class="space-y-4 mb-8">
+                        ${state.answers.map((answer, idx) => `
+                            <div class="p-4 rounded-lg border-2 ${
+                                answer.isCorrect ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+                            }">
+                                <div class="flex items-start gap-3">
+                                    ${answer.isCorrect ? `
+                                        <svg class="w-6 h-6 text-green-600 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                    ` : `
+                                        <svg class="w-6 h-6 text-red-600 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                    `}
+                                    <div class="flex-1">
+                                        <p class="font-semibold text-gray-800 mb-2">${answer.question}</p>
+                                        ${!answer.isCorrect ? `
+                                            <p class="text-sm text-red-700 mb-1">
+                                                Ditt svar: ${answer.userAnswer}
+                                            </p>
+                                            <p class="text-sm text-green-700">
+                                                Rätt svar: ${answer.correctAnswer}
+                                            </p>
+                                        ` : `
+                                            <p class="text-sm text-green-700">
+                                                ${answer.userAnswer}
+                                            </p>
+                                        `}
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <button
+                            onclick="restartAll()"
+                            class="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            Kör om allt
+                        </button>
+                        
+                        ${wrongAnswers.length > 0 ? `
+                            <button
+                                onclick="retryMistakes()"
+                                class="flex items-center justify-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-700"
+                            >
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                                </svg>
+                                Öva misstag (${wrongAnswers.length})
+                            </button>
+                        ` : ''}
+                        
+                        <button
+                            onclick="newText()"
+                            class="flex items-center justify-center gap-2 bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-700"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Ny text
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function render() {
+            const app = document.getElementById('app');
+            
+            if (state.stage === 'input') {
+                app.innerHTML = renderInput();
+                const textInput = document.getElementById('textInput');
+                if (textInput) {
+                    textInput.addEventListener('input', (e) => {
+                        state.text = e.target.value;
+                    });
+                }
+            } else if (state.stage === 'quiz') {
+                app.innerHTML = renderQuiz();
+                const answerInput = document.getElementById('answerInput');
+                if (answerInput) {
+                    answerInput.addEventListener('input', (e) => {
+                        state.userAnswer = e.target.value;
+                    });
+                    answerInput.focus();
+                }
+            } else if (state.stage === 'results') {
+                app.innerHTML = renderResults();
+            }
+        }
+
+        render();
+    </script>
+</body>
+</html>
