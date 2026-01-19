@@ -3,7 +3,7 @@ import { BookOpen, Brain, CheckCircle, XCircle, RefreshCw, FileText, ArrowRight,
 
 export default function QuizGenerator() {
   const [text, setText] = useState('');
-  const [stage, setStage] = useState('input'); // input, quiz, results
+  const [stage, setStage] = useState('input');
   const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
@@ -90,11 +90,13 @@ ${text}`
       try {
         const quizData = JSON.parse(e.target.result);
         setText(quizData.text);
-        setQuestions(quizData.questions);
-        setNumQuestions(quizData.numQuestions || quizData.questions.length);
-        setStage('quiz');
-        setCurrentQuestion(0);
-        setAnswers([]);
+        setQuestions(quizData.questions || []);
+        setNumQuestions(quizData.numQuestions || quizData.questions?.length || 5);
+        if (quizData.questions && quizData.questions.length > 0) {
+          setStage('quiz');
+          setCurrentQuestion(0);
+          setAnswers([]);
+        }
       } catch (error) {
         console.error('Fel vid uppladdning:', error);
         alert('Kunde inte läsa filen. Kontrollera att det är en giltig quiz-fil.');
@@ -128,6 +130,7 @@ ${text}`
     setCurrentQuestion(0);
     setAnswers([]);
     setUserAnswer('');
+    setNumQuestions(5);
   };
 
   const retryMistakes = () => {
