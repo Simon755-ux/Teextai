@@ -89,6 +89,12 @@
                 <path d="M5 12h14"/>
             </svg>
         );
+        
+        const Key = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>
+            </svg>
+        );
 
         function QuizGenerator() {
           const [text, setText] = useState('');
@@ -99,9 +105,17 @@
           const [answers, setAnswers] = useState([]);
           const [loading, setLoading] = useState(false);
           const [numQuestions, setNumQuestions] = useState(5);
+          const [apiKey, setApiKey] = useState('');
+          const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
           const generateQuestions = async () => {
             if (!text.trim()) return;
+            
+            if (!apiKey.trim()) {
+              setShowApiKeyInput(true);
+              alert('Du behöver ange en Anthropic API-nyckel först');
+              return;
+            }
             
             setLoading(true);
             
@@ -110,10 +124,12 @@
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
+                  "x-api-key": apiKey,
+                  "anthropic-version": "2023-06-01"
                 },
                 body: JSON.stringify({
                   model: "claude-sonnet-4-20250514",
-                  max_tokens: 1000,
+                  max_tokens: 2000,
                   messages: [
                     {
                       role: "user",
@@ -132,6 +148,10 @@ ${text}`
                 })
               });
 
+              if (!response.ok) {
+                throw new Error('API-anrop misslyckades. Kontrollera din API-nyckel.');
+              }
+
               const data = await response.json();
               
               const fullText = data.content
@@ -148,7 +168,7 @@ ${text}`
               setAnswers([]);
             } catch (error) {
               console.error('Fel vid generering av frågor:', error);
-              alert('Något gick fel. Försök igen.');
+              alert('Något gick fel. Kontrollera din API-nyckel och försök igen.');
             } finally {
               setLoading(false);
             }
@@ -267,6 +287,41 @@ ${text}`
                     <p className="text-gray-600 mb-6">
                       Klistra in en text så genererar AI frågor för att testa din förståelse.
                     </p>
+                    
+                    {showApiKeyInput && (
+                      <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="w-5 h-5 text-blue-600 mt-0.5"><Key /></div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-blue-900 mb-2">Anthropic API-nyckel krävs</h3>
+                            <p className="text-sm text-blue-700 mb-3">
+                              För att använda denna app behöver du en API-nyckel från Anthropic. 
+                              Skaffa en på <a href="https://console.anthropic.com/" target="_blank" className="underline">console.anthropic.com</a>
+                            </p>
+                            <input
+                              type="password"
+                              value={apiKey}
+                              onChange={(e) => setApiKey(e.target.value)}
+                              placeholder="sk-ant-api03-..."
+                              className="w-full p-3 border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                            />
+                            <p className="text-xs text-blue-600 mt-2">
+                              Din API-nyckel lagras endast lokalt i din webbläsare
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {!showApiKeyInput && (
+                      <button
+                        onClick={() => setShowApiKeyInput(true)}
+                        className="mb-6 flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800"
+                      >
+                        <div className="w-4 h-4"><Key /></div>
+                        Ange API-nyckel
+                      </button>
+                    )}
                     
                     <textarea
                       value={text}
@@ -421,7 +476,9 @@ ${text}`
                           }`}
                         >
                           <div className="flex items-start gap-3">
-                            <div className="w-6 h-6 flex-shrink-0 mt-1">
+                            <div className={`w-6 h-6 flex-shrink-0 mt-1 ${
+                              answer.isCorrect ? 'text-green-600' : 'text-red-600'
+                            }`}>
                               {answer.isCorrect ? <CheckCircle /> : <XCircle />}
                             </div>
                             <div className="flex-1">
