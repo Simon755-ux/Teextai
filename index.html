@@ -61,9 +61,11 @@ ${text}`
   };
 
   const downloadQuiz = () => {
+    if (!text.trim()) return;
+    
     const quizData = {
       text: text,
-      questions: questions,
+      questions: questions.length > 0 ? questions : [],
       numQuestions: numQuestions,
       createdAt: new Date().toISOString()
     };
@@ -73,7 +75,9 @@ ${text}`
     const a = document.createElement('a');
     a.href = url;
     a.download = `quiz-${Date.now()}.json`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
