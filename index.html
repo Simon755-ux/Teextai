@@ -7,47 +7,45 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
     <div id="root"></div>
     <script type="text/babel">
         const { useState } = React;
-        const { BookOpen, Brain, CheckCircle, XCircle, RotateCcw, FileText } = window.lucide;
-        
-      import React, { useState } from 'react';
-import { BookOpen, Brain, CheckCircle, XCircle, RotateCcw, FileText } from 'lucide-react';
+        const { BookOpen, Brain, CheckCircle, XCircle, RotateCcw, FileText } = lucide;
 
-export default function QuizGenerator() {
-  const [step, setStep] = useState('input'); // input, quiz, results
-  const [inputText, setInputText] = useState('');
-  const [questions, setQuestions] = useState([]);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState([]);
-  const [userAnswers, setUserAnswers] = useState([]);
-  const [loading, setLoading] = useState(false);
+        function QuizGenerator() {
+          const [step, setStep] = useState('input');
+          const [inputText, setInputText] = useState('');
+          const [questions, setQuestions] = useState([]);
+          const [currentQuestion, setCurrentQuestion] = useState(0);
+          const [answers, setAnswers] = useState([]);
+          const [userAnswers, setUserAnswers] = useState([]);
+          const [loading, setLoading] = useState(false);
 
-  const generateQuestions = async () => {
-    if (!inputText.trim()) return;
-    
-    setLoading(true);
-    
-    const wordCount = inputText.split(/\s+/).length;
-    const numQuestions = Math.min(Math.max(3, Math.floor(wordCount / 50)), 10);
-    
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [
-            {
-              role: "user",
-              content: `Baserat på följande text, generera exakt ${numQuestions} frågor med 4 svarsalternativ vardera. En fråga ska vara rätt, resten fel.
+          const generateQuestions = async () => {
+            if (!inputText.trim()) return;
+            
+            setLoading(true);
+            
+            const wordCount = inputText.split(/\s+/).length;
+            const numQuestions = Math.min(Math.max(3, Math.floor(wordCount / 50)), 10);
+            
+            try {
+              const response = await fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: "claude-sonnet-4-20250514",
+                  max_tokens: 1000,
+                  messages: [
+                    {
+                      role: "user",
+                      content: `Baserat på följande text, generera exakt ${numQuestions} frågor med 4 svarsalternativ vardera. En fråga ska vara rätt, resten fel.
 
 Text: ${inputText}
 
@@ -64,279 +62,279 @@ Svara ENDAST med JSON i detta format (ingen annan text):
 }
 
 Gör frågorna på svenska och basera dem på faktainnehåll i texten.`
+                    }
+                  ]
+                })
+              });
+
+              const data = await response.json();
+              const text = data.content[0].text;
+              const cleanText = text.replace(/```json|```/g, '').trim();
+              const parsed = JSON.parse(cleanText);
+              
+              setQuestions(parsed.questions);
+              setUserAnswers(new Array(parsed.questions.length).fill(null));
+              setAnswers(new Array(parsed.questions.length).fill(null));
+              setStep('quiz');
+              setCurrentQuestion(0);
+            } catch (error) {
+              console.error('Error:', error);
+              alert('Något gick fel. Försök igen.');
+            } finally {
+              setLoading(false);
             }
-          ]
-        })
-      });
+          };
 
-      const data = await response.json();
-      const text = data.content[0].text;
-      const cleanText = text.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(cleanText);
-      
-      setQuestions(parsed.questions);
-      setUserAnswers(new Array(parsed.questions.length).fill(null));
-      setAnswers(new Array(parsed.questions.length).fill(null));
-      setStep('quiz');
-      setCurrentQuestion(0);
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Något gick fel. Försök igen.');
-    } finally {
-      setLoading(false);
-    }
-  };
+          const handleAnswer = (optionIndex) => {
+            const newAnswers = [...answers];
+            const newUserAnswers = [...userAnswers];
+            newAnswers[currentQuestion] = optionIndex;
+            newUserAnswers[currentQuestion] = optionIndex;
+            setAnswers(newAnswers);
+            setUserAnswers(newUserAnswers);
+          };
 
-  const handleAnswer = (optionIndex) => {
-    const newAnswers = [...answers];
-    const newUserAnswers = [...userAnswers];
-    newAnswers[currentQuestion] = optionIndex;
-    newUserAnswers[currentQuestion] = optionIndex;
-    setAnswers(newAnswers);
-    setUserAnswers(newUserAnswers);
-  };
+          const nextQuestion = () => {
+            if (currentQuestion < questions.length - 1) {
+              setCurrentQuestion(currentQuestion + 1);
+            } else {
+              setStep('results');
+            }
+          };
 
-  const nextQuestion = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
-      setStep('results');
-    }
-  };
+          const getWrongQuestions = () => {
+            return questions
+              .map((q, index) => ({ ...q, index }))
+              .filter((q, index) => userAnswers[index] !== q.correct);
+          };
 
-  const getWrongQuestions = () => {
-    return questions
-      .map((q, index) => ({ ...q, index }))
-      .filter((q, index) => userAnswers[index] !== q.correct);
-  };
+          const restartWrong = () => {
+            const wrongQuestions = getWrongQuestions();
+            setQuestions(wrongQuestions);
+            setUserAnswers(new Array(wrongQuestions.length).fill(null));
+            setAnswers(new Array(wrongQuestions.length).fill(null));
+            setCurrentQuestion(0);
+            setStep('quiz');
+          };
 
-  const restartWrong = () => {
-    const wrongQuestions = getWrongQuestions();
-    setQuestions(wrongQuestions);
-    setUserAnswers(new Array(wrongQuestions.length).fill(null));
-    setAnswers(new Array(wrongQuestions.length).fill(null));
-    setCurrentQuestion(0);
-    setStep('quiz');
-  };
+          const restartAll = () => {
+            setUserAnswers(new Array(questions.length).fill(null));
+            setAnswers(new Array(questions.length).fill(null));
+            setCurrentQuestion(0);
+            setStep('quiz');
+          };
 
-  const restartAll = () => {
-    setUserAnswers(new Array(questions.length).fill(null));
-    setAnswers(new Array(questions.length).fill(null));
-    setCurrentQuestion(0);
-    setStep('quiz');
-  };
+          const newText = () => {
+            setStep('input');
+            setInputText('');
+            setQuestions([]);
+            setAnswers([]);
+            setUserAnswers([]);
+            setCurrentQuestion(0);
+          };
 
-  const newText = () => {
-    setStep('input');
-    setInputText('');
-    setQuestions([]);
-    setAnswers([]);
-    setUserAnswers([]);
-    setCurrentQuestion(0);
-  };
+          const score = userAnswers.filter((ans, i) => ans === questions[i]?.correct).length;
 
-  const score = userAnswers.filter((ans, i) => ans === questions[i]?.correct).length;
-
-  if (step === 'input') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-6">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-full mb-4">
-              <Brain className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">AI Quiz Generator</h1>
-            <p className="text-gray-600">Klistra in din text så genererar AI frågor åt dig</p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Din text
-            </label>
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Klistra in texten du vill lära dig här..."
-              className="w-full h-64 p-4 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
-            />
-            
-            <div className="mt-6 flex items-center justify-between">
-              <span className="text-sm text-gray-500">
-                {inputText.split(/\s+/).filter(w => w).length} ord • ~{Math.min(Math.max(3, Math.floor(inputText.split(/\s+/).length / 50)), 10)} frågor
-              </span>
-              <button
-                onClick={generateQuestions}
-                disabled={!inputText.trim() || loading}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Genererar...
-                  </>
-                ) : (
-                  <>
-                    <BookOpen className="w-5 h-5" />
-                    Skapa Quiz
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (step === 'quiz') {
-    const q = questions[currentQuestion];
-    const hasAnswered = answers[currentQuestion] !== null;
-    const isCorrect = hasAnswered && answers[currentQuestion] === q.correct;
-
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-6">
-        <div className="max-w-3xl mx-auto">
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium text-gray-600">
-                Fråga {currentQuestion + 1} av {questions.length}
-              </span>
-              <span className="text-sm text-gray-500">
-                {userAnswers.filter(a => a !== null).length} besvarade
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">{q.question}</h2>
-
-            <div className="space-y-3 mb-6">
-              {q.options.map((option, index) => {
-                const isSelected = answers[currentQuestion] === index;
-                const showCorrect = hasAnswered && index === q.correct;
-                const showWrong = hasAnswered && isSelected && index !== q.correct;
-
-                return (
-                  <button
-                    key={index}
-                    onClick={() => !hasAnswered && handleAnswer(index)}
-                    disabled={hasAnswered}
-                    className={`w-full p-4 rounded-xl text-left transition-all border-2 ${
-                      showCorrect
-                        ? 'bg-green-50 border-green-500'
-                        : showWrong
-                        ? 'bg-red-50 border-red-500'
-                        : isSelected
-                        ? 'bg-indigo-50 border-indigo-500'
-                        : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
-                    } ${!hasAnswered ? 'cursor-pointer' : 'cursor-default'}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{option}</span>
-                      {showCorrect && <CheckCircle className="w-6 h-6 text-green-600" />}
-                      {showWrong && <XCircle className="w-6 h-6 text-red-600" />}
+          if (step === 'input') {
+            return (
+              <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-6">
+                <div className="max-w-3xl mx-auto">
+                  <div className="text-center mb-8">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-full mb-4">
+                      <Brain className="w-8 h-8 text-white" />
                     </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {hasAnswered && (
-              <div className={`p-4 rounded-xl mb-6 ${isCorrect ? 'bg-green-50' : 'bg-red-50'}`}>
-                <p className={`font-medium mb-2 ${isCorrect ? 'text-green-800' : 'text-red-800'}`}>
-                  {isCorrect ? '✓ Rätt!' : '✗ Fel svar'}
-                </p>
-                <p className="text-gray-700">{q.explanation}</p>
-              </div>
-            )}
-
-            <button
-              onClick={nextQuestion}
-              disabled={!hasAnswered}
-              className="w-full py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all"
-            >
-              {currentQuestion < questions.length - 1 ? 'Nästa fråga' : 'Se resultat'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (step === 'results') {
-    const wrongQuestions = getWrongQuestions();
-    const percentage = Math.round((score / questions.length) * 100);
-
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-6">
-        <div className="max-w-3xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-            <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-6 ${
-              percentage >= 70 ? 'bg-green-100' : 'bg-orange-100'
-            }`}>
-              <Brain className={`w-10 h-10 ${percentage >= 70 ? 'text-green-600' : 'text-orange-600'}`} />
-            </div>
-
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">Quiz slutfört!</h2>
-            <p className="text-xl text-gray-600 mb-8">
-              Du fick {score} av {questions.length} rätt ({percentage}%)
-            </p>
-
-            <div className="grid gap-4 mb-8">
-              <button
-                onClick={restartAll}
-                className="w-full py-4 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-              >
-                <RotateCcw className="w-5 h-5" />
-                Kör om alla frågor
-              </button>
-
-              {wrongQuestions.length > 0 && (
-                <button
-                  onClick={restartWrong}
-                  className="w-full py-4 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-all flex items-center justify-center gap-2"
-                >
-                  <XCircle className="w-5 h-5" />
-                  Kör om felaktiga ({wrongQuestions.length} st)
-                </button>
-              )}
-
-              <button
-                onClick={newText}
-                className="w-full py-4 bg-gray-600 text-white rounded-xl font-medium hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
-              >
-                <FileText className="w-5 h-5" />
-                Ny text
-              </button>
-            </div>
-
-            <div className="text-left bg-gray-50 rounded-xl p-6">
-              <h3 className="font-bold text-gray-800 mb-4">Sammanfattning</h3>
-              <div className="space-y-3">
-                {questions.map((q, index) => (
-                  <div key={index} className="flex items-start gap-3">
-                    {userAnswers[index] === q.correct ? (
-                      <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                    )}
-                    <span className="text-sm text-gray-700">{q.question}</span>
+                    <h1 className="text-4xl font-bold text-gray-800 mb-2">AI Quiz Generator</h1>
+                    <p className="text-gray-600">Klistra in din text så genererar AI frågor åt dig</p>
                   </div>
-                ))}
+
+                  <div className="bg-white rounded-2xl shadow-lg p-8">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Din text
+                    </label>
+                    <textarea
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      placeholder="Klistra in texten du vill lära dig här..."
+                      className="w-full h-64 p-4 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
+                    />
+                    
+                    <div className="mt-6 flex items-center justify-between">
+                      <span className="text-sm text-gray-500">
+                        {inputText.split(/\s+/).filter(w => w).length} ord • ~{Math.min(Math.max(3, Math.floor(inputText.split(/\s+/).length / 50)), 10)} frågor
+                      </span>
+                      <button
+                        onClick={generateQuestions}
+                        disabled={!inputText.trim() || loading}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                      >
+                        {loading ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Genererar...
+                          </>
+                        ) : (
+                          <>
+                            <BookOpen className="w-5 h-5" />
+                            Skapa Quiz
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-}
+            );
+          }
+
+          if (step === 'quiz') {
+            const q = questions[currentQuestion];
+            const hasAnswered = answers[currentQuestion] !== null;
+            const isCorrect = hasAnswered && answers[currentQuestion] === q.correct;
+
+            return (
+              <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-6">
+                <div className="max-w-3xl mx-auto">
+                  <div className="mb-6">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-gray-600">
+                        Fråga {currentQuestion + 1} av {questions.length}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {userAnswers.filter(a => a !== null).length} besvarade
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl shadow-lg p-8">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-6">{q.question}</h2>
+
+                    <div className="space-y-3 mb-6">
+                      {q.options.map((option, index) => {
+                        const isSelected = answers[currentQuestion] === index;
+                        const showCorrect = hasAnswered && index === q.correct;
+                        const showWrong = hasAnswered && isSelected && index !== q.correct;
+
+                        return (
+                          <button
+                            key={index}
+                            onClick={() => !hasAnswered && handleAnswer(index)}
+                            disabled={hasAnswered}
+                            className={`w-full p-4 rounded-xl text-left transition-all border-2 ${
+                              showCorrect
+                                ? 'bg-green-50 border-green-500'
+                                : showWrong
+                                ? 'bg-red-50 border-red-500'
+                                : isSelected
+                                ? 'bg-indigo-50 border-indigo-500'
+                                : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
+                            } ${!hasAnswered ? 'cursor-pointer' : 'cursor-default'}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{option}</span>
+                              {showCorrect && <CheckCircle className="w-6 h-6 text-green-600" />}
+                              {showWrong && <XCircle className="w-6 h-6 text-red-600" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {hasAnswered && (
+                      <div className={`p-4 rounded-xl mb-6 ${isCorrect ? 'bg-green-50' : 'bg-red-50'}`}>
+                        <p className={`font-medium mb-2 ${isCorrect ? 'text-green-800' : 'text-red-800'}`}>
+                          {isCorrect ? '✓ Rätt!' : '✗ Fel svar'}
+                        </p>
+                        <p className="text-gray-700">{q.explanation}</p>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={nextQuestion}
+                      disabled={!hasAnswered}
+                      className="w-full py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all"
+                    >
+                      {currentQuestion < questions.length - 1 ? 'Nästa fråga' : 'Se resultat'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (step === 'results') {
+            const wrongQuestions = getWrongQuestions();
+            const percentage = Math.round((score / questions.length) * 100);
+
+            return (
+              <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-6">
+                <div className="max-w-3xl mx-auto">
+                  <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                    <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-6 ${
+                      percentage >= 70 ? 'bg-green-100' : 'bg-orange-100'
+                    }`}>
+                      <Brain className={`w-10 h-10 ${percentage >= 70 ? 'text-green-600' : 'text-orange-600'}`} />
+                    </div>
+
+                    <h2 className="text-3xl font-bold text-gray-800 mb-2">Quiz slutfört!</h2>
+                    <p className="text-xl text-gray-600 mb-8">
+                      Du fick {score} av {questions.length} rätt ({percentage}%)
+                    </p>
+
+                    <div className="grid gap-4 mb-8">
+                      <button
+                        onClick={restartAll}
+                        className="w-full py-4 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                      >
+                        <RotateCcw className="w-5 h-5" />
+                        Kör om alla frågor
+                      </button>
+
+                      {wrongQuestions.length > 0 && (
+                        <button
+                          onClick={restartWrong}
+                          className="w-full py-4 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-all flex items-center justify-center gap-2"
+                        >
+                          <XCircle className="w-5 h-5" />
+                          Kör om felaktiga ({wrongQuestions.length} st)
+                        </button>
+                      )}
+
+                      <button
+                        onClick={newText}
+                        className="w-full py-4 bg-gray-600 text-white rounded-xl font-medium hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
+                      >
+                        <FileText className="w-5 h-5" />
+                        Ny text
+                      </button>
+                    </div>
+
+                    <div className="text-left bg-gray-50 rounded-xl p-6">
+                      <h3 className="font-bold text-gray-800 mb-4">Sammanfattning</h3>
+                      <div className="space-y-3">
+                        {questions.map((q, index) => (
+                          <div key={index} className="flex items-start gap-3">
+                            {userAnswers[index] === q.correct ? (
+                              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            ) : (
+                              <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                            )}
+                            <span className="text-sm text-gray-700">{q.question}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+        }
         
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<QuizGenerator />);
